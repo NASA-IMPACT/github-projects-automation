@@ -1,0 +1,13 @@
+{
+  "_template": "gh:cjolowicz/cookiecutter-hypermodern-python",
+  "author": "Ashish Acharya",
+  "copyright_year": "2023",
+  "development_status": "Development Status :: 1 - Planning",
+  "email": "ashish.acharya14@gmail.com",
+  "friendly_name": "Github Projects Automation",
+  "github_user": "code-geek",
+  "license": "MIT",
+  "package_name": "github_projects_automation",
+  "project_name": "github-projects-automation",
+  "version": "0.0.1"
+}
