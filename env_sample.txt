@@ -1,0 +1,20 @@
+TOKEN_SECRET= "<keep-your-personal-access-token-here>"
+BOARD_URL = "<github-board-url>"
+owner = "<provide_the_owner_name>"
+repo_name = "<provide-the-repository-name>"
+login = "<login_user-name>"
+DESIRED_STATES = "<select-state>"
+DESIRED_CONDITIONS= "author: "abc", label: "bug", mentions: "def", assignee: "ghi"" # example
+
+
+# Issue number and updated metadata
+issue_number = 123
+updated_assignee = 'new_assignee'
+updated_milestone = 'new_milestone'
+updated_labels = ['label1', 'label2']
+metadata_list = ['metadata1', 'metadata2', 'metadata3']
+
+
+# Issue number and new comment
+issue_number = 123
+new_comment_body = "This is a new comment."
