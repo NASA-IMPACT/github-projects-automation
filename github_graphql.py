@@ -149,6 +149,48 @@ def get_viewer_login(personal_access_token):
     return json_data["data"]["viewer"]["login"]
 
 
+def get_all_issues(owner, name, token):
+    query = """
+    query GetAllIssues {
+      repository(owner: "%s", name: "%s") {
+        issues(first: 100) {
+          edges {
+            node {
+              title
+              bodyText
+              author {
+                login
+              }
+            }
+          }
+        }
+      }
+    }
+    """ % (
+        owner,
+        name,
+    )
+
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": query},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    data = response.json()
+    issues = data["data"]["repository"]["issues"]["edges"]
+
+    # Extract relevant data for each issue
+    result = []
+    for issue in issues:
+        title = issue["node"]["title"]
+        body = issue["node"]["bodyText"]
+        author = issue["node"]["author"]["login"]
+        result.append({"title": title, "body": body, "author": author})
+
+    return result
+
+
 def fetch_comments_of_issue(token, issue_number, owner, name):
     # Define the GraphQL query
     query = """

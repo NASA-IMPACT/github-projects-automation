@@ -2,6 +2,8 @@ from github_graphql import get_viewer_login
 from github_graphql import fetch_comments_of_issue
 from dotenv import load_dotenv
 import os
+from github_graphql import get_all_issues
+import json
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -31,6 +33,7 @@ desired_conditions = os.getenv("DESIRED_CONDITIONS")
 viewer_login = get_viewer_login(personal_access_token)
 print(f"Authenticated as: {viewer_login}")
 
+
 issue_id = os.getenv("issue_id")
 assignee = os.getenv("assignee")
 new_assignee_id = os.getenv("new_assignee_id")
@@ -45,3 +48,8 @@ name = os.getenv("REPO_NAME")
 issue_number = os.getenv("ISSUE_NUMBER")
 
 fetch_comments_of_issue(token, issue_number, owner, name)
+
+# Retrieve all issues and return as JSON
+all_issues = get_all_issues(owner, name, token)
+json_data = json.dumps(all_issues, indent=4)
+print(json_data)
