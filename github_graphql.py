@@ -1,72 +1,102 @@
-import requests
 import json
+import requests
+from enum import Enum
+from dotenv import dotenv_values
+import os
+import pytest
+from dotenv import load_dotenv
+
+
+class IssueState(Enum):
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+    # Add more states if needed
+
+
+class EnumEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Enum):
+            return obj.value
+        return super().default(obj)
 
 
 def get_viewer_login(personal_access_token):
-    # Define the GraphQL query or mutation you want to make
     graphql_query = """
-        query {
+        query ($status: [IssueState!]) {
             viewer {
+                id
                 login
-            }
-        }
-    """
-
-    # Set the headers for the request
-    headers = {
-        "Authorization": f"Bearer {personal_access_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Set the GraphQL endpoint
-    url = "https://api.github.com/graphql"
-
-    # Send the GraphQL request
-    response = requests.post(url, json={"query": graphql_query}, headers=headers)
-
-    # Check the response status code
-    if response.status_code == 200:
-        data = response.json()
-        if "errors" in data:
-            # Handle GraphQL errors
-            for error in data["errors"]:
-                print(f"GraphQL error: {error['message']}")
-        else:
-            # Extract the desired data from the response
-            viewer_login = data["data"]["viewer"]["login"]
-            return viewer_login
-    else:
-        # Handle request errors
-        print(f"Request failed with status code: {response.status_code}")
-
-
-def fetch_cards(personal_access_token, BOARD_URL, owner, repo_name):
-    board_id = BOARD_URL.split("/")[-3]  # Provide the board_id
-    owner = ""
-    repo_name = ""
-    # Define the GraphQL query or mutation you want to make
-    graphql_query_fetch_cards = """
-        query {
-        repository(owner: <owner-name>, name:<repo-nanme>) {
-            project(number: <board_id>) {
-            columns(first: 2) {
-                nodes {
-                name
-                cards(first: 2) {
-                    nodes {
-                    content {
-                        ... on Issue {
-                        title,
-                        body,
-                        closedAt
+                projectV2(number: 1) {
+                    id
+                    title
+                    items(first: 100) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        nodes {
+                            databaseId
+                            id
+                            content {
+                                __typename
+                                ... on Issue {
+                                    url
+                                }
+                            }
+                            fieldValues(first: 20) {
+                                nodes {
+                                    ... on ProjectV2ItemFieldSingleSelectValue {
+                                        name
+                                        id
+                                    }
+                                    ... on ProjectV2ItemFieldLabelValue {
+                                        labels(first: 1) {
+                                            nodes {
+                                                id
+                                                name
+                                                issues(first: 20, states: $status, orderBy: { field: CREATED_AT, direction: DESC }) {
+                                                    nodes {
+                                                        url
+                                                        title
+                                                        createdAt
+                                                        comments(first: 5) {
+                                                            nodes {
+                                                                author {
+                                                                    login
+                                                                }
+                                                                bodyText
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ... on ProjectV2ItemFieldTextValue {
+                                        text
+                                        id
+                                        updatedAt
+                                        creator {
+                                            url
+                                        }
+                                    }
+                                    ... on ProjectV2ItemFieldMilestoneValue {
+                                        milestone {
+                                            id
+                                        }
+                                    }
+                                    ... on ProjectV2ItemFieldRepositoryValue {
+                                        repository {
+                                            id
+                                            url
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    }
-                }
                 }
             }
-            }
-        }
         }
     """
 
@@ -75,236 +105,363 @@ def fetch_cards(personal_access_token, BOARD_URL, owner, repo_name):
         "Authorization": f"Bearer {personal_access_token}",
         "Content-Type": "application/json",
     }
+    # Load environment variables from .env file
+    env = dotenv_values(".env")
+
+    status_filter = [
+        IssueState.CLOSED
+    ]  # Set the desired status filter here as a list of IssueState values
+
+    # Load the status filter from the environment variable, if available
+    env_status = env.get("STATUS")
+    if env_status:
+        try:
+            status_filter = [
+                IssueState(s.strip().upper()) for s in env_status.split(",")
+            ]
+        except ValueError:
+            print("Invalid status value in .env file. Using default status filter.")
+
+    variables = {
+        "status": status_filter,
+        # "estimate": env_estimate,
+        # "metadata": env_metadata,
+    }
+
+    # variables = {"status": status_filter}
 
     # Set the GraphQL endpoint
     url = "https://api.github.com/graphql"
 
-    # Send the GraphQL request
-    response = requests.post(
-        url, json={"query": graphql_query_fetch_cards}, headers=headers
+    # Serialize the request payload manually with a custom encoder
+    payload = json.dumps(
+        {"query": graphql_query, "variables": variables}, cls=EnumEncoder
     )
-    data = response.json()
-    return data
-
-
-def fetch_issues(
-    personal_access_token, BOARD_URL, login, repo_name, desired_states, conditions_str
-):
-    board_id = BOARD_URL.split("/")[-3]  # Provide the board_id
-    # Define the GraphQL query or mutation you want to make
-    graphql_query_fetch_issues = """
-        query {
-       repository(owner: "{login}", name: "{repo_name}") {
-            issues(first: 10, orderBy: { field: CREATED_AT, direction: DESC }, filterBy: { states ,conditions_str}) {
-                nodes {
-                    title,
-                    body,
-                    closedAt
-                   
-            }}
-        }
-    }
-    """
-
-    # Set the headers for the request
-    headers = {
-        "Authorization": f"Bearer {personal_access_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Set the GraphQL endpoint
-    url = "https://api.github.com/graphql"
 
     # Send the GraphQL request
-    response = requests.post(
-        url, json={"query": graphql_query_fetch_issues}, headers=headers
-    )
-    data = response.json()
-    return data
+    response = requests.post(url, data=payload, headers=headers)
+
+    # Get the JSON response
+    json_data = response.json()
+
+    # Print the JSON data
+    print("I am here", json_data)
+    return json_data["data"]["viewer"]["login"]
 
 
-def update_metadata(
-    personal_access_token,
-    BOARD_URL,
-    login,
-    repo_name,
-    issue_number,
-    updated_assignee,
-    updated_milestone,
-    updated_labels,
-    metadata_list,
-):
-    board_id = BOARD_URL.split("/")[-3]  # Provide the board_id
-    # Define the GraphQL query or mutation you want to make
-    query_issue = """
-        query($issue_number: Int!) {
-        repository(owner: "your_username", name: "your_repository(repo-name)") {
-            issue(number: $issue_number) {
-            id
-            assignee {
-                login
-            }
-            milestone {
-                title
-            }
-            labels(first: 100) {
-                nodes {
-                name
-                }
-            }
-            }
-        }
-        }
-        """
-
-    # GraphQL mutation to update the issue metadata
-    mutation_update_metadata = """
-    mutation($issue_id: ID!, $assignee: String, $milestone: String, $labels: [String], $metadata: [String]) {
-    updateIssue(input: {id: $issue_id, assignee: $assignee, milestone: $milestone, labels: $labels}) {
-        issue {
-        id
-        }
-    }
-    }
-    """
-
-    # Make the GraphQL query to fetch the issue
-    variables = {"issue_number": issue_number}
-
-    # Set the headers for the request
-    # Create a session with the access token
-    session = requests.Session()
-    session.headers = {
-        "Authorization": f"Bearer {personal_access_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Set the GraphQL endpoint
-    url = "https://api.github.com/graphql"
-
-    # Send the GraphQL request
-    response = session.post(url, json={"query": query_issue, "variables": variables})
-    data = json.loads(response.text)
-
-    # Extract current metadata from the fetched issue
-    issue_id = data["data"]["repository"]["issue"]["id"]
-    current_assignee = data["data"]["repository"]["issue"]["assignee"]["login"]
-    current_milestone = data["data"]["repository"]["issue"]["milestone"]["title"]
-    current_labels = [
-        label["name"]
-        for label in data["data"]["repository"]["issue"]["labels"]["nodes"]
-    ]
-
-    # Update the metadata if they have changed
-    if (
-        current_assignee != updated_assignee
-        or current_milestone != updated_milestone
-        or current_labels != updated_labels
-    ):
-        # Prepare the variables for the update mutation
-        variables = {
-            "issue_id": issue_id,
-            "assignee": updated_assignee,
-            "milestone": updated_milestone,
-            "labels": updated_labels,
-            "metadata": metadata_list,
-        }
-
-        # Make the GraphQL mutation to update the issue metadata
-        response = session.post(
-            url, json={"query": mutation_update_metadata, "variables": variables}
-        )
-
-        if response.status_code == 200:
-            print("Metadata updated successfully.")
-        else:
-            print("Failed to update metadata.")
-
-    else:
-        print("Metadata is already up to date.")
-
-
-def fetch_issue_comments(
-    personal_access_token, BOARD_URL, login, repo_name, issue_number
-):
-    board_id = BOARD_URL.split("/")[-3]  # Provide the board_id
-    # Define the GraphQL query or mutation you want to make
-    # GraphQL query to fetch issue comments
-    query_comments = """
-    query($issue_number: Int!) {
-    repository(owner: "your_username", name: "your_repository") {
-        issue(number: $issue_number) {
-        id
+def fetch_comments_of_issue(token, issue_number, owner, name):
+    # Define the GraphQL query
+    query = """
+    query GetIssueComments {
+    repository(owner: "%s", name: "%s") {
+        issue(number: %s) {
         comments(first: 100) {
-            nodes {
-            id
-            body
+            edges {
+            node {
+                bodyText
+                author {
+                login
+                }
+            }
             }
         }
         }
     }
     }
-    """
-    url = "https://api.github.com/graphql"
-    # Create a session with the access token
-    session = requests.Session()
-    session.headers = {
-        "Authorization": f"Bearer {personal_access_token}",
-        "Content-Type": "application/json",
-    }
+    """ % (
+        owner,
+        name,
+        issue_number,
+    )
+    # Send the GraphQL request to the GitHub API
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": query},
+        headers={"Authorization": f"Bearer {token}"},
+    )
 
-    # Make the GraphQL query to fetch issue comments
-    variables = {"issue_number": issue_number}
-    response = session.post(url, json={"query": query_comments, "variables": variables})
-    data = json.loads(response.text)
+    # Parse the response and retrieve the comments
+    data = response.json()
+    comments = data["data"]["repository"]["issue"]["comments"]["edges"]
 
-    comments = data["data"]["repository"]["issue"]["comments"]["nodes"]
-    return json.dumps(comments)
+    # Process the comments
+    for comment in comments:
+        body = comment["node"]["bodyText"]
+        author = comment["node"]["author"]["login"]
+        print(f"Author: {author}")
+        print(f"Comment: {body}\n")
 
-
-# Function to add a new comment to an issue
-def add_comment(personal_access_token, issue_number, comment_body):
-    # Create a session with the access token
-    session = requests.Session()
-    session.headers = {
-        "Authorization": f"Bearer {personal_access_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Make the GraphQL mutation to add a new comment
-    query_issue = """
-    query($issue_number: Int!) {
-      repository(owner: "your_username", name: "your_repository") {
-        issue(number: $issue_number) {
-          id
-        }
-      }
-    }
-    """
-
-    # GraphQL mutation to add a new comment to an issue
-    mutation_add_comment = """
-    mutation($issue_id: ID!, $body: String!) {
-    addComment(input: {subjectId: $issue_id, body: $body}) {
-        comment {
+    # Define the GraphQL query to retrieve the issue ID
+    query_issue_id = """
+    query GetIssueID {
+    repository(owner: "%s", name: "%s") {
+        issue(number: %s) {
         id
+        }
+    }
+    }
+    """ % (
+        owner,
+        name,
+        issue_number,
+    )
+
+    # Send the GraphQL request to get the issue ID
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": query_issue_id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Parse the response and retrieve the issue ID
+    data = response.json()
+    issue_id = data["data"]["repository"]["issue"]["id"]
+
+    # # Retrieve the issue ID for the update
+    # issue_id = data["data"]["repository"]["issue"]["id"]
+
+    # Define the updated issue title and body
+    updated_title = "New Issue Title"
+    updated_body = "New issue body content"
+
+    # Define the GraphQL mutation to update the issue
+    mutation = """
+    mutation UpdateIssue {
+    updateIssue(input: {id: "%s", title: "%s", body: "%s"}) {
+        issue {
+        title
         body
         }
     }
     }
-    """
-    url = "https://api.github.com/graphql"
-    variables = {"issue_number": issue_number}
-    response = session.post(url, json={"query": query_issue, "variables": variables})
-    data = json.loads(response.text)
-    issue_id = data["data"]["repository"]["issue"]["id"]
-
-    variables = {"issue_id": issue_id, "body": comment_body}
-    response = session.post(
-        url, json={"query": mutation_add_comment, "variables": variables}
+    """ % (
+        issue_id,
+        updated_title,
+        updated_body,
     )
 
-    if response.status_code == 200:
-        print("New comment added successfully.")
-    else:
-        print("Failed to add comment.")
+    # Send the GraphQL mutation to the GitHub API
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": mutation},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Parse the response and retrieve the updated issue data
+    data = response.json()
+    updated_issue = data["data"]["updateIssue"]["issue"]
+
+    # Print the updated issue details
+    print("Updated Issue Details:")
+    print(f'Title: {updated_issue["title"]}')
+    print(f'Body: {updated_issue["body"]}')
+
+    # Define the updated issue title and body
+    updated_title = "updated title from code"
+    updated_body = "updated body from code"
+
+    # Define the GraphQL mutation to update the issue
+    mutation_update_issue = """
+    mutation UpdateIssue {
+    updateIssue(input: {id: "%s", title: "%s", body: "%s"}) {
+        issue {
+        id
+        title
+        body
+        }
+    }
+    }
+    """ % (
+        issue_id,
+        updated_title,
+        updated_body,
+    )
+
+    # Send the GraphQL mutation to update the issue
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": mutation_update_issue},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Parse the response and retrieve the updated issue data
+    data = response.json()
+    updated_issue = data["data"]["updateIssue"]["issue"]
+
+    # Print the updated issue details
+    print("Updated Issue Details:")
+    print(f'Title: {updated_issue["title"]}')
+    print(f'Body: {updated_issue["body"]}')
+
+    # Define the new comment content
+    new_comment_body = "This is a new comment."
+
+    # Define the GraphQL mutation to add a new comment
+    mutation_add_comment = """
+    mutation AddComment {
+    addComment(input: {subjectId: "%s", body: "%s"}) {
+        commentEdge {
+        node {
+            body
+            author {
+            login
+            }
+        }
+        }
+    }
+    }
+    """ % (
+        updated_issue["id"],
+        new_comment_body,
+    )
+
+    # Send the GraphQL mutation to add a new comment
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": mutation_add_comment},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Parse the response and retrieve the new comment data
+    data = response.json()
+    new_comment = data["data"]["addComment"]["commentEdge"]["node"]
+
+    # Print the new comment details
+    print("New Comment Details:")
+    print(f'Author: {new_comment["author"]["login"]}')
+    print(f'Comment: {new_comment["body"]}')
+
+    # test
+
+
+def retrieve_issue_id(owner, name, issue_number, token):
+    query = """
+    query GetIssueID {
+        repository(owner: "%s", name: "%s") {
+        issue(number: %s) {
+            id
+        }
+        }
+    }
+    """ % (
+        owner,
+        name,
+        issue_number,
+    )
+
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": query},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    data = response.json()
+    issue_id = data["data"]["repository"]["issue"]["id"]
+    return issue_id
+
+
+def update_issue(issue_id, updated_title, updated_body, token):
+    mutation = """
+    mutation UpdateIssue {
+      updateIssue(input: {id: "%s", title: "%s", body: "%s"}) {
+        issue {
+          title
+          body
+        }
+      }
+    }
+    """ % (
+        issue_id,
+        updated_title,
+        updated_body,
+    )
+
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": mutation},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    data = response.json()
+    updated_issue = data["data"]["updateIssue"]["issue"]
+    return updated_issue
+
+
+def add_comment(issue_id, new_comment_body, token):
+    mutation = """
+    mutation AddComment {
+      addComment(input: {subjectId: "%s", body: "%s"}) {
+        commentEdge {
+          node {
+            body
+            author {
+              login
+            }
+          }
+        }
+      }
+    }
+    """ % (
+        issue_id,
+        new_comment_body,
+    )
+
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": mutation},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    data = response.json()
+    new_comment = data["data"]["addComment"]["commentEdge"]["node"]
+    return new_comment
+
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Define the test data
+owner = os.getenv("OWNER")
+name = os.getenv("REPO_NAME")
+issue_number = os.getenv("ISSUE_NUMBER")
+token = os.getenv("GITHUB_TOKEN")
+
+
+def test_retrieve_issue_id():
+    # Call the function to retrieve the issue ID
+    issue_id = retrieve_issue_id(owner, name, issue_number, token)
+
+    # Assert that the issue ID is not empty
+    assert issue_id is not None
+
+
+def test_update_issue():
+    # Define the test data
+    issue_id = retrieve_issue_id(owner, name, issue_number, token)
+    updated_title = "New Issue Title"
+    updated_body = "New issue body content"
+
+    # Call the function to update the issue
+    updated_issue = update_issue(issue_id, updated_title, updated_body, token)
+
+    # Assert that the updated issue has the expected title and body
+    assert updated_issue["title"] == updated_title
+    assert updated_issue["body"] == updated_body
+
+
+def test_add_comment():
+    # Define the test data
+    issue_id = retrieve_issue_id(owner, name, issue_number, token)
+    new_comment_body = "This is a new comment."
+
+    # Call the function to add a new comment
+    new_comment = add_comment(issue_id, new_comment_body, token)
+
+    # Assert that the new comment has the expected body
+    assert new_comment["body"] == new_comment_body
+    assert new_comment["author"]["login"] == owner
+
+
+# Run the tests
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])

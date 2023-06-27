@@ -1,20 +1,17 @@
-TOKEN_SECRET= "<keep-your-personal-access-token-here>"
-BOARD_URL = "<github-board-url>"
-owner = "<provide_the_owner_name>"
-repo_name = "<provide-the-repository-name>"
-login = "<login_user-name>"
-DESIRED_STATES = "<select-state>"
-DESIRED_CONDITIONS= "author: "abc", label: "bug", mentions: "def", assignee: "ghi"" # example
+TOKEN_SECRET= "abc123"
+STATUS="OPEN"
+label_ids = "label1"
+DESIRED_CONDITIONS= "author: "abc"
+estimate_value = 5
+metadata_value = "example_metadata"  
 
 
-# Issue number and updated metadata
-issue_number = 123
-updated_assignee = 'new_assignee'
-updated_milestone = 'new_milestone'
-updated_labels = ['label1', 'label2']
-metadata_list = ['metadata1', 'metadata2', 'metadata3']
+issue_id = "MDQ6VXNlcjc1NTc1ODY" 
+assignee = "pytest"
+milestone = "123v"
+labels = ["label1", "label2"]
 
+ISSUE_NUMBER=2
+OWNER = 'Pytest2'
+'REPO_NAME' ="newWork"
 
-# Issue number and new comment
-issue_number = 123
-new_comment_body = "This is a new comment."
