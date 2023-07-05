@@ -6,6 +6,9 @@ from github_graphql import get_all_issues
 import json
 from github_graphql import get_all_issues_details
 from github_graphql import get_PR_Metrics
+from github_graphql import issue_management_metrics_calculation
+from github_graphql import project_activity_metrics_calculation
+from github_graphql import contributor_activity_metrics_calculation
 
 # from github_graphql import filter_cards_states_estimate_metadata
 
@@ -69,3 +72,8 @@ get_all_issues_details(owner, name, token)
 
 # to fetch PR data with limited comments per PR
 get_PR_Metrics(owner, name, token)
+
+
+issue_management_metrics_calculation(owner, name, token)
+project_activity_metrics_calculation(owner, name, token)
+contributor_activity_metrics_calculation(owner, name, token)

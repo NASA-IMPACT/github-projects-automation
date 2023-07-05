@@ -630,6 +630,285 @@ def get_PR_Metrics(owner, name, token):
         print(f"Request failed with status code {response.status_code}")
 
 
+#
+def issue_management_metrics_calculation(owner, name, token):
+    query = """
+    query {
+      repository(owner: "%s", name: "%s") {
+     issues(first: 100, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
+        createdAt
+        closedAt
+        title
+        priority: labels(first: 1) {
+          nodes {
+            name
+          }
+        }
+        assignees(first: 1) {
+          nodes {
+            login
+          }
+        }
+      }
+    }
+      }
+    }
+    """ % (
+        owner,
+        name,
+    )
+    url = "https://api.github.com/graphql"
+    # Define headers with authorization
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    # Make the API request
+    response = requests.post(url, json={"query": query}, headers=headers)
+    print(response.json())
+    # Check if the request was successful
+    if response.status_code == 200:
+        data = response.json()
+
+        # Extract the necessary data from the response
+        issues = data["data"]["repository"]["issues"]["nodes"]
+        total_issues = len(issues)
+        total_resolution_time = 0
+        total_time_to_assign = 0
+        priority_counts = {}
+        assignee_counts = {}
+
+        for issue in issues:
+            created_at = datetime.strptime(issue["createdAt"], "%Y-%m-%dT%H:%M:%SZ")
+            closed_at = (
+                datetime.strptime(issue["closedAt"], "%Y-%m-%dT%H:%M:%SZ")
+                if issue["closedAt"]
+                else None
+            )
+
+            if closed_at:
+                resolution_time = closed_at - created_at
+                total_resolution_time += resolution_time.total_seconds() / 3600
+
+            assignees = issue["assignees"]["nodes"]
+            if assignees:
+                assignee = assignees[0]["login"]
+                time_to_assign = (
+                    created_at
+                    - datetime.strptime(issue["createdAt"], "%Y-%m-%dT%H:%M:%SZ")
+                ).total_seconds() / 3600
+                total_time_to_assign += time_to_assign
+                assignee_counts[assignee] = assignee_counts.get(assignee, 0) + 1
+
+            priority = (
+                issue["priority"]["nodes"][0]["name"]
+                if issue["priority"]["nodes"]
+                else "Uncategorized"
+            )
+            priority_counts[priority] = priority_counts.get(priority, 0) + 1
+
+        # Calculate the metrics
+        avg_resolution_time = (
+            total_resolution_time / total_issues if total_issues > 0 else 0
+        )
+        avg_time_to_assign = (
+            total_time_to_assign / total_issues if total_issues > 0 else 0
+        )
+
+        # Print the metrics
+        print(f"Average resolution time: {avg_resolution_time:.2f} hours")
+        print(f"Average time to assign: {avg_time_to_assign:.2f} hours")
+        print("Priority distribution:")
+        for priority, count in priority_counts.items():
+            print(f"{priority}: {count}")
+        print("Assignee distribution:")
+        for assignee, count in assignee_counts.items():
+            print(f"{assignee}: {count}")
+    else:
+        print(f"Request failed with status code {response.status_code}")
+
+
+def project_activity_metrics_calculation(owner, name, token):
+    query = """
+    query {
+      repository(owner: "%s", name: "%s") {
+  refs(refPrefix: "refs/heads/", first: 1) {
+      nodes {
+        target {
+          ... on Commit {
+            history(first: 100) {
+              totalCount
+              nodes {
+                committedDate
+                author {
+                  user {
+                    login
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    pullRequests {
+      totalCount
+    }
+    issues {
+      totalCount
+    }
+      }
+    }
+    """ % (
+        owner,
+        name,
+    )
+    url = "https://api.github.com/graphql"
+    # Define headers with authorization
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    # Make the API request
+    response = requests.post(url, json={"query": query}, headers=headers)
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        data = response.json()
+
+        # Extract the necessary data from the response
+        refs = data["data"]["repository"]["refs"]["nodes"]
+        pull_requests_count = data["data"]["repository"]["pullRequests"]["totalCount"]
+        issues_count = data["data"]["repository"]["issues"]["totalCount"]
+
+        if not refs:
+            print("No default branch found in the repository.")
+        else:
+            commit_history = refs[0]["target"]["history"]["nodes"]
+
+            contributor_commits = {}
+
+            for commit in commit_history:
+                login = owner
+                #             author =
+                if login == owner:
+                    if login in contributor_commits:
+                        contributor_commits[login] += 1
+                    else:
+                        contributor_commits[login] = 1
+
+            # Sort the contributors based on commit count
+            sorted_contributors = sorted(
+                contributor_commits.items(), key=lambda x: x[1], reverse=True
+            )
+            #         print("sorted_contributors", sorted_contributors)
+            # Extract the top 5 active contributors
+            top_active_contributors = sorted_contributors[:1]
+
+            # Extract the top 5 passive contributors (remaining contributors)
+            top_passive_contributors = sorted_contributors[1:]
+
+            # Print the project activity metrics
+            print("Project Activity Metrics:")
+            print(f"Total Commits: {len(commit_history)}")
+            print(f"Total Pull Requests: {pull_requests_count}")
+            print(f"Total Issues: {issues_count}")
+            print(f"Top 5 Active Contributors:")
+            for contributor, commit_count in top_active_contributors:
+                print(f"{contributor}: {commit_count} commits")
+            print(f"Top 5 Passive Contributors:")
+            for contributor, commit_count in top_passive_contributors:
+                print(f"{contributor}: {commit_count} commits")
+    else:
+        print(f"Request failed with status code {response.status_code}")
+
+
+def contributor_activity_metrics_calculation(owner, name, token):
+    query = """
+    query {
+      repository(owner: "%s", name: "%s") {
+   pullRequests(states: [OPEN, CLOSED], first: 100) {
+      totalCount
+      nodes {
+        author {
+          login
+        }
+        comments {
+          totalCount
+        }
+      }
+    }
+    issues(states: [OPEN, CLOSED], first: 100) {
+      totalCount
+      nodes {
+        author {
+          login
+        }
+        comments {
+          totalCount
+        }
+      }
+    }
+      }
+    }
+    """ % (
+        owner,
+        name,
+    )
+    url = "https://api.github.com/graphql"
+    # Define headers with authorization
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    # Make the API request
+    response = requests.post(url, json={"query": query}, headers=headers)
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        data = response.json()
+
+        # Extract the necessary data from the response
+        pull_requests = data["data"]["repository"]["pullRequests"]["nodes"]
+        issues = data["data"]["repository"]["issues"]["nodes"]
+
+        # Track contribution metrics
+        contributor_activity = {}
+
+        for pr in pull_requests:
+            author = pr["author"]["login"]
+            comments = pr["comments"]["totalCount"]
+
+            if author not in contributor_activity:
+                contributor_activity[author] = {
+                    "pull_requests": 0,
+                    "comments": 0,
+                    "issues": 0,
+                }
+
+            contributor_activity[author]["pull_requests"] += 1
+            contributor_activity[author]["comments"] += comments
+
+        for issue in issues:
+            author = issue["author"]["login"]
+            comments = issue["comments"]["totalCount"]
+
+            if author not in contributor_activity:
+                contributor_activity[author] = {
+                    "pull_requests": 0,
+                    "comments": 0,
+                    "issues": 0,
+                }
+
+            contributor_activity[author]["issues"] += 1
+            contributor_activity[author]["comments"] += comments
+
+        # Print the contribution activity metrics
+        print("Contribution Activity Metrics:")
+        for contributor, activity in contributor_activity.items():
+            print(f"Contributor: {contributor}")
+            print(f"Pull Requests: {activity['pull_requests']}")
+            print(f"Issues: {activity['issues']}")
+            print(f"Comments: {activity['comments']}")
+            print("-" * 30)
+    else:
+        print(f"Request failed with status code {response.status_code}")
+
+
 # Load environment variables from .env file
 load_dotenv()
 
