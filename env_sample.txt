@@ -14,3 +14,10 @@ labels = ["label1", "label2"]
 ISSUE_NUMBER=2
 OWNER = 'Pytest2'
 'REPO_NAME' ="newWork"
+
+
+ISSUE_STATE= "CLOSED"
+ESTIMATE= "5hrs"
+METADATA="some_metadata_value"
+project_id = 1
+

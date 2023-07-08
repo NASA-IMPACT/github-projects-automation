@@ -909,6 +909,63 @@ def contributor_activity_metrics_calculation(owner, name, token):
         print(f"Request failed with status code {response.status_code}")
 
 
+# Helper function to format metadata fields as a Markdown list
+def format_metadata_fields(fields):
+    markdown_list = "\n"
+    for key, value in fields.items():
+        markdown_list += f"- **{key}:** {value}\n"
+    return markdown_list
+
+
+def add_metadata_to_project_board(owner, name, token, project_id):
+    query = """
+    query {
+      repository(owner: "%s", name: "%s") {
+   mutation ($input: UpdateProjectInput!) {
+  updateProject(input: $input) {
+    project {
+      id
+      body
+    }
+  }
+}
+      }
+    }
+    """ % (
+        owner,
+        name,
+    )
+    url = "https://api.github.com/graphql"
+    # Define the metadata fields you want to add
+    metadata_fields = {"Field 1": "Value 1", "Field 2": "Value 2", "Field 3": "Value 3"}
+
+    # Prepare the GraphQL variables
+    variables = {
+        "input": {
+            "projectId": project_id,
+            "body": format_metadata_fields(metadata_fields),
+        }
+    }
+    # Prepare the request headers
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.starfire-preview+json",
+    }
+
+    # Send the GraphQL mutation request
+    response = requests.post(
+        f"https://api.github.com/graphql",
+        json={"query": query, "variables": variables},
+        headers=headers,
+    )
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        print("Metadata fields added successfully.")
+    else:
+        print("Failed to add metadata fields.")
+
+
 # Load environment variables from .env file
 load_dotenv()
 

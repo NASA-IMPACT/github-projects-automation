@@ -9,6 +9,7 @@ from github_graphql import get_PR_Metrics
 from github_graphql import issue_management_metrics_calculation
 from github_graphql import project_activity_metrics_calculation
 from github_graphql import contributor_activity_metrics_calculation
+from github_graphql import add_metadata_to_project_board
 
 # from github_graphql import filter_cards_states_estimate_metadata
 
@@ -66,7 +67,7 @@ print(json_data)
 issue_state = os.getenv("ISSUE_STATE")
 estimate = os.getenv("ESTIMATE")
 metadata = os.getenv("METADATA")
-
+project_id = os.getenv("project_id")
 # to retrieve open and closed issues, assignees, and completion time
 get_all_issues_details(owner, name, token)
 
@@ -77,3 +78,4 @@ get_PR_Metrics(owner, name, token)
 issue_management_metrics_calculation(owner, name, token)
 project_activity_metrics_calculation(owner, name, token)
 contributor_activity_metrics_calculation(owner, name, token)
+add_metadata_to_project_board(owner, name, token, project_id)
