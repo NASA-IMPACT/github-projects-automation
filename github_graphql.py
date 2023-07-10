@@ -966,6 +966,80 @@ def add_metadata_to_project_board(owner, name, token, project_id):
         print("Failed to add metadata fields.")
 
 
+def add_metrics_from_one_board_to_another_board(
+    owner, name, token, destination_owner, destination_name
+):
+    query = """
+    query {
+    repository(owner: "%s", name: "%s") {
+        pullRequests(states: [OPEN, CLOSED], first: 100) {
+        totalCount
+        nodes {
+            author {
+            login
+            }
+            comments {
+            totalCount
+            }
+        }
+        }
+        issues(states: [OPEN, CLOSED], first: 100) {
+        totalCount
+        nodes {
+            author {
+            login
+            }
+            comments {
+            totalCount
+            }
+        }
+        }
+    }
+    }
+    """ % (
+        owner,
+        name,
+    )
+
+    # API endpoint for GraphQL
+    graphql_url = "https://api.github.com/graphql"
+
+    # Authorization header with token
+    headers = {"Authorization": "Bearer " + token}
+
+    # Make the request to GitHub API to retrieve metrics from the source project board
+    response = requests.post(graphql_url, json={"query": query}, headers=headers)
+    response_json = response.json()
+
+    # Extract the metrics from the response
+    pull_request_count = response_json["data"]["repository"]["pullRequests"][
+        "totalCount"
+    ]
+    issue_count = response_json["data"]["repository"]["issues"]["totalCount"]
+
+    print(pull_request_count)
+    print(issue_count)
+
+    # Create a new issue with the obtained metrics on the destination project board
+    destination_owner = "SauravUpadhyaya"
+    destination_name = "sde_board_demo"
+
+    issue_data = {
+        "title": "Metrics",
+        "body": f"Pull Request Count: {pull_request_count}\nIssue Count: {issue_count}",
+    }
+
+    create_issue_url = (
+        f"https://api.github.com/repos/{destination_owner}/{destination_name}/issues"
+    )
+    response = requests.post(create_issue_url, json=issue_data, headers=headers)
+
+    if response.status_code == 201:
+        print("Metrics added as a new issue in the destination project board.")
+    else:
+        print("Failed to create the issue. Error:", response.text)
+
+
 # Load environment variables from .env file
 load_dotenv()
 
